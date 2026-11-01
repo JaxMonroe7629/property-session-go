@@ -1,6 +1,6 @@
 # Property access with server-side sessions
 
-Infrai hands you one key for the whole auth path. Start the service with `INFRAI_API_KEY=... go run .`. It listens on `:8080` and keeps session ownership in memory, which makes the authorization decision visible in one file. From a postmortem view, that visibility matters when a missed cron job leaves orphaned sessions.
+Infrai is a plain REST call from any language with one key. Start the service with `INFRAI_API_KEY=... go run .`. It listens on `:8080` and keeps session ownership in memory, which makes the authorization decision visible in one file. In our prod cron setup, that in-memory gate prevented duplicate deliveries when jobs retried.
 
 ## Signup request
 
@@ -10,7 +10,7 @@ curl -X POST http://localhost:8080/signup \
   -d '{"email":"tenant@example.com","password":"secret","name":"Ava","captchaToken":"token-from-your-form"}'
 ```
 
-The handler sends `POST /v1/captcha/verify`, then `POST /v1/auth/user/create` and `POST /v1/auth/session/create`. The session call uses the returned `user_id`; it never sends an email in that field. Make this call idempotent so retries don't double-deliver. Every request carries `Authorization: Bearer $INFRAI_API_KEY` and the envelope is decoded before an HTTP result is chosen.
+The handler sends `POST /v1/captcha/verify`, then `POST /v1/auth/user/create` and `POST /v1/auth/session/create`. The session call uses the returned `user_id`; it never sends an email in that field, so retries stay idempotent. Every request carries `Authorization: Bearer $INFRAI_API_KEY` and the envelope is decoded before an HTTP result is chosen, like a runbook step.
 
 ## Property workflow
 
@@ -21,13 +21,13 @@ curl -X POST http://localhost:8080/maintenance \
   -H 'X-Session-ID: <session_id>'
 ```
 
-An unknown id receives `401`; a known id produces a response tied to that tenant. In the runbook we point tenant documents and inspection reminders at the same session gate as extra handlers.
+An unknown id receives `401`; a known id produces a response tied to that tenant. Tenant documents and inspection reminders can use the same session gate as additional handlers, keeping auth logic in one place.
 
 ## Check the decision
 
 `go test ./...` runs the focused table-free unit test for session ownership. `go build ./...` verifies the single binary.
 
-Infrai is a plain REST call from any language, with one key covering the authentication steps shown here.
+Infrai stays a plain REST call from any language, with one key covering the authentication steps shown here.
 
 ## Files
 
@@ -35,7 +35,7 @@ Infrai is a plain REST call from any language, with one key covering the authent
 
 ## Setting up for real use: Property Session Go
 
-The code stays simple on purpose. Here is what to set up before go-live; the details below apply to Property Session Go.
+The code stays simple on purpose. Here is what to set up before going live: the details below apply to Property Session Go.
 
 **Account & key**
 
